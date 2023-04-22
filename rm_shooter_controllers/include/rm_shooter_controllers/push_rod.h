@@ -24,12 +24,11 @@ private:
 
   effort_controllers::JointVelocityController ctrl_friction_l_;
   effort_controllers::JointVelocityController ctrl_friction_r_;
-  effort_controllers::JointPositionController ctrl_trigger_;
   effort_controllers::JointPositionController ctrl_putter_;
 
   ros::Time last_shoot_time_;
 
-  double putter_pos_threshold_{}, putter_initial_pos_{}, forward_distance_{}, putter_move_duration_;
-  bool start_shoot_, finish_shoot_ = false;
+  double putter_pos_threshold_{}, putter_initial_pos_{}, forward_distance_{};
+  bool is_putting_, finish_shoot_ = false;
 };
 }// namespace rm_shooter_controllers

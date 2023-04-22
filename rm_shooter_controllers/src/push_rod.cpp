@@ -51,26 +51,27 @@ void PushRodController::push(const ros::Time& time, const ros::Duration& period)
       ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
                                2. * M_PI / static_cast<double>(push_per_rotation_));
       ctrl_trigger_.update(time, period);
-      start_shoot_ = true;
     }
-
-    // push bullet towards friction wheels
+    // Time to shoot!!!
     if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
         config_.forward_push_threshold)
     {
       ctrl_putter_.setCommand(putter_initial_pos_ + forward_distance_);
       ctrl_putter_.update(time, period);
       finish_shoot_ = true;
+      last_shoot_time_ = time;
     }
-
     // finish shooting
     if(finish_shoot_)
     {
       ctrl_putter_.setCommand(putter_initial_pos_);
-      last_shoot_time_ = time;
       finish_shoot_ = false;
     }
+    checkBlock(time);
   }
+  else
+    ROS_DEBUG("[Shooter] Wait for friction wheel");
+  checkBlock(time);
 
 }
 
@@ -110,3 +111,5 @@ void PushRodController::ctrlUpdate(const ros::Time& time, const ros::Duration& p
 }
 
 } // namespace rm_shooter_controllers
+
+PLUGINLIB_EXPORT_CLASS(rm_shooter_controllers::PushRodController, controller_interface::ControllerBase)
