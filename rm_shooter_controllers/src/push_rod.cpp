@@ -21,7 +21,6 @@ bool PushRodController::init(hardware_interface::RobotHW* robot_hw, ros::NodeHan
     ROS_ERROR("Forward distance no defined (namespace: %s)", controller_nh.getNamespace().c_str());
   return (ctrl_friction_l_.init(effort_joint_interface_,nh_friction_l) &&
           ctrl_friction_r_.init(effort_joint_interface_,nh_friction_r) &&
-          ctrl_trigger_.init(effort_joint_interface_, nh_trigger) &&
           ctrl_putter_.init(effort_joint_interface_, nh_putter));
 }
 
@@ -106,7 +105,6 @@ void PushRodController::ctrlUpdate(const ros::Time& time, const ros::Duration& p
 {
   ctrl_friction_l_.update(time, period);
   ctrl_friction_r_.update(time, period);
-  ctrl_trigger_.update(time, period);
   ctrl_putter_.update(time, period);
 }
 
