@@ -61,7 +61,8 @@ include_directories(
 
 ## Declare a cpp library
 add_library(${PROJECT_NAME}
-        src/standard.cpp)
+        src/shooter_base.cpp src/friction_wheel.cpp
+        src/pneumatic.cpp src/push_rod.cpp)
 
 ## Specify libraries to link executable targets against
 target_link_libraries(${PROJECT_NAME}

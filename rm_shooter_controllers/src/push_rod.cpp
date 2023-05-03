@@ -21,7 +21,8 @@ bool PushRodController::init(hardware_interface::RobotHW* robot_hw, ros::NodeHan
     ROS_ERROR("Forward distance no defined (namespace: %s)", controller_nh.getNamespace().c_str());
   return (ctrl_friction_l_.init(effort_joint_interface_,nh_friction_l) &&
           ctrl_friction_r_.init(effort_joint_interface_,nh_friction_r) &&
-          ctrl_putter_.init(effort_joint_interface_, nh_putter));
+          ctrl_putter_.init(effort_joint_interface_, nh_putter) &&
+          ctrl_trigger_.init(effort_joint_interface_,nh_trigger));
 }
 
 void PushRodController::starting(const ros::Time& time)
@@ -44,26 +45,24 @@ void PushRodController::push(const ros::Time& time, const ros::Duration& period)
         ctrl_friction_r_.joint_.getVelocity() < -M_PI)) &&
       (time - last_shoot_time_).toSec() >= 1. / cmd_.hz)
   {
+    // Time to shoot!!!
     if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
-            config_.forward_push_threshold)
+            config_.forward_push_threshold && putter_is_ready_)
     {
       ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
                                2. * M_PI / static_cast<double>(push_per_rotation_));
-      ctrl_trigger_.update(time, period);
-    }
-    // Time to shoot!!!
-    if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
-        config_.forward_push_threshold)
-    {
       ctrl_putter_.setCommand(putter_initial_pos_ + forward_distance_);
-      ctrl_putter_.update(time, period);
+      putter_is_ready_ = false;
+    }
+    if (std::abs(ctrl_putter_.command_struct_.position_ - ctrl_putter_.getPosition()) < putter_pos_threshold_)
+    {
       finish_shoot_ = true;
       last_shoot_time_ = time;
-    }
-    // finish shooting
-    if(finish_shoot_)
-    {
       ctrl_putter_.setCommand(putter_initial_pos_);
+    }
+    if (finish_shoot_ && std::abs(ctrl_putter_.command_struct_.position_ - ctrl_putter_.getPosition()) > 0.2)
+    {
+      putter_is_ready_ = true;
       finish_shoot_ = false;
     }
     checkBlock(time);
@@ -105,6 +104,7 @@ void PushRodController::ctrlUpdate(const ros::Time& time, const ros::Duration& p
 {
   ctrl_friction_l_.update(time, period);
   ctrl_friction_r_.update(time, period);
+  ctrl_trigger_.update(time,period);
   ctrl_putter_.update(time, period);
 }
 

@@ -5,6 +5,33 @@
            base_class_type="controller_interface::ControllerBase">
         <description>
             The Controller is RoboMaster standard robot
+            Shooter controller base. It expects a EffortJointInterface
+            type of hardware interface.
+        </description>
+    </class>
+    <class name="rm_shooter_controllers/FrictionWheelController"
+           type="rm_shooter_controllers::FrictionWheelController"
+           base_class_type="controller_interface::ControllerBase">
+        <description>
+            The Controller is RoboMaster standard robot
+            Shooter controller. It expects a EffortJointInterface
+            type of hardware interface.
+        </description>
+    </class>
+    <class name="rm_shooter_controllers/PushRodController"
+           type="rm_shooter_controllers::PushRodController"
+           base_class_type="controller_interface::ControllerBase">
+        <description>
+            The Controller is RoboMaster Putter-hero robot
+            Shooter controller. It expects a EffortJointInterface
+            type of hardware interface.
+        </description>
+    </class>
+    <class name="rm_shooter_controllers/PneumaticController"
+           type="rm_shooter_controllers::PneumaticController"
+           base_class_type="controller_interface::ControllerBase">
+        <description>
+            The Controller is RoboMaster Pneumatic-hero robot
             Shooter controller. It expects a EffortJointInterface
             type of hardware interface.
         </description>
