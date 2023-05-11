@@ -29,6 +29,6 @@ private:
   ros::Time last_shoot_time_;
 
   double putter_pos_threshold_{}, putter_initial_pos_{}, forward_distance_{};
-  bool putter_is_ready_ = true, finish_shoot_ = false;
+  bool putter_is_ready_ = true, push_bullet_ = true, finish_shoot_ = false;
 };
 }// namespace rm_shooter_controllers
