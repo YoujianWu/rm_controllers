@@ -34,7 +34,7 @@ private:
   void moveJoint(const ros::Time& time, const ros::Duration& period) override;
   void normal(const ros::Time& time, const ros::Duration& period);
   void block(const ros::Time& time, const ros::Duration& period);
-  void updateEstimation(const ros::Time& time);
+  void updateEstimation(const ros::Time& time, const ros::Duration& period);
   geometry_msgs::Twist odometry() override;
   static const int STATE_DIM = 10;
   static const int CONTROL_DIM = 4;
@@ -44,7 +44,7 @@ private:
   Eigen::Matrix<double, STATE_DIM, CONTROL_DIM> b_{};
   Eigen::Matrix<double, CONTROL_DIM, CONTROL_DIM> r_{};
   Eigen::Matrix<double, STATE_DIM, 1> x_;
-  double vmc_bias_angle_, left_pos_[2], left_spd_[2], right_pos_[2], right_spd_[2];
+  double vmc_bias_angle_, left_angle[2], right_angle[2], left_pos_[2], left_spd_[2], right_pos_[2], right_spd_[2];
   double wheel_radius_ = 0.09, wheel_base_;
   double position_des_ = 0;
   double position_offset_ = 0.;
@@ -68,6 +68,7 @@ private:
   // sub
   ::ros::Subscriber leg_cmd_subscriber_;
   rm_msgs::LegCmd leg_cmd_;
+  void legCmdCallback(const rm_msgs::LegCmdConstPtr& msg);
 
   double coeff[40][6] = {
     { -1.3907, -4.8818, 4.7517, 10.273, -6.7264, -3.402 },
@@ -114,45 +115,42 @@ private:
 
   Eigen::Matrix<double, CONTROL_DIM, STATE_DIM> getK(double l_ll, double l_lr)
   {
-    Eigen::Matrix<double, CONTROL_DIM, STATE_DIM> M_;
+    Eigen::Matrix<double, CONTROL_DIM, STATE_DIM> m;
     for (int i = 0; i < 4; i++)
     {
       int index = i * 10;
-      M_(i, 0) = coeff[index + 0][0] + coeff[index + 0][1] * l_ll + coeff[index + 0][2] * l_lr +
-                 coeff[index + 0][3] * l_ll * l_ll + coeff[index + 0][4] * l_ll * l_lr +
-                 coeff[index + 0][5] * l_lr * l_lr;
-      M_(i, 1) = coeff[index + 1][0] + coeff[index + 1][1] * l_ll + coeff[index + 1][2] * l_lr +
-                 coeff[index + 1][3] * l_ll * l_ll + coeff[index + 1][4] * l_ll * l_lr +
-                 coeff[index + 1][5] * l_lr * l_lr;
-      M_(i, 2) = coeff[index + 2][0] + coeff[index + 2][1] * l_ll + coeff[index + 2][2] * l_lr +
-                 coeff[index + 2][3] * l_ll * l_ll + coeff[index + 2][4] * l_ll * l_lr +
-                 coeff[index + 2][5] * l_lr * l_lr;
-      M_(i, 3) = coeff[index + 3][0] + coeff[index + 31][1] * l_ll + coeff[index + 3][2] * l_lr +
-                 coeff[index + 3][3] * l_ll * l_ll + coeff[index + 3][4] * l_ll * l_lr +
-                 coeff[index + 3][5] * l_lr * l_lr;
-      M_(i, 4) = coeff[index + 4][0] + coeff[index + 4][1] * l_ll + coeff[index + 4][2] * l_lr +
-                 coeff[index + 4][3] * l_ll * l_ll + coeff[index + 4][4] * l_ll * l_lr +
-                 coeff[index + 4][5] * l_lr * l_lr;
-      M_(i, 5) = coeff[index + 5][0] + coeff[index + 5][1] * l_ll + coeff[index + 5][2] * l_lr +
-                 coeff[index + 5][3] * l_ll * l_ll + coeff[index + 5][4] * l_ll * l_lr +
-                 coeff[index + 5][5] * l_lr * l_lr;
-      M_(i, 6) = coeff[index + 6][0] + coeff[index + 6][1] * l_ll + coeff[index + 6][2] * l_lr +
-                 coeff[index + 6][3] * l_ll * l_ll + coeff[index + 6][4] * l_ll * l_lr +
-                 coeff[index + 6][5] * l_lr * l_lr;
-      M_(i, 7) = coeff[index + 7][0] + coeff[index + 7][1] * l_ll + coeff[index + 7][2] * l_lr +
-                 coeff[index + 7][3] * l_ll * l_ll + coeff[index + 7][4] * l_ll * l_lr +
-                 coeff[index + 7][5] * l_lr * l_lr;
-      M_(i, 8) = coeff[index + 8][0] + coeff[index + 8][1] * l_ll + coeff[index + 8][2] * l_lr +
-                 coeff[index + 8][3] * l_ll * l_ll + coeff[index + 8][4] * l_ll * l_lr +
-                 coeff[index + 8][5] * l_lr * l_lr;
-      M_(i, 9) = coeff[index + 9][0] + coeff[index + 9][1] * l_ll + coeff[index + 9][2] * l_lr +
-                 coeff[index + 9][3] * l_ll * l_ll + coeff[index + 9][4] * l_ll * l_lr +
-                 coeff[index + 9][5] * l_lr * l_lr;
+      m(i, 0) = coeff[index + 0][0] + coeff[index + 0][1] * l_ll + coeff[index + 0][2] * l_lr +
+                coeff[index + 0][3] * l_ll * l_ll + coeff[index + 0][4] * l_ll * l_lr +
+                coeff[index + 0][5] * l_lr * l_lr;
+      m(i, 1) = coeff[index + 1][0] + coeff[index + 1][1] * l_ll + coeff[index + 1][2] * l_lr +
+                coeff[index + 1][3] * l_ll * l_ll + coeff[index + 1][4] * l_ll * l_lr +
+                coeff[index + 1][5] * l_lr * l_lr;
+      m(i, 2) = coeff[index + 2][0] + coeff[index + 2][1] * l_ll + coeff[index + 2][2] * l_lr +
+                coeff[index + 2][3] * l_ll * l_ll + coeff[index + 2][4] * l_ll * l_lr +
+                coeff[index + 2][5] * l_lr * l_lr;
+      m(i, 3) = coeff[index + 3][0] + coeff[index + 31][1] * l_ll + coeff[index + 3][2] * l_lr +
+                coeff[index + 3][3] * l_ll * l_ll + coeff[index + 3][4] * l_ll * l_lr +
+                coeff[index + 3][5] * l_lr * l_lr;
+      m(i, 4) = coeff[index + 4][0] + coeff[index + 4][1] * l_ll + coeff[index + 4][2] * l_lr +
+                coeff[index + 4][3] * l_ll * l_ll + coeff[index + 4][4] * l_ll * l_lr +
+                coeff[index + 4][5] * l_lr * l_lr;
+      m(i, 5) = coeff[index + 5][0] + coeff[index + 5][1] * l_ll + coeff[index + 5][2] * l_lr +
+                coeff[index + 5][3] * l_ll * l_ll + coeff[index + 5][4] * l_ll * l_lr +
+                coeff[index + 5][5] * l_lr * l_lr;
+      m(i, 6) = coeff[index + 6][0] + coeff[index + 6][1] * l_ll + coeff[index + 6][2] * l_lr +
+                coeff[index + 6][3] * l_ll * l_ll + coeff[index + 6][4] * l_ll * l_lr +
+                coeff[index + 6][5] * l_lr * l_lr;
+      m(i, 7) = coeff[index + 7][0] + coeff[index + 7][1] * l_ll + coeff[index + 7][2] * l_lr +
+                coeff[index + 7][3] * l_ll * l_ll + coeff[index + 7][4] * l_ll * l_lr +
+                coeff[index + 7][5] * l_lr * l_lr;
+      m(i, 8) = coeff[index + 8][0] + coeff[index + 8][1] * l_ll + coeff[index + 8][2] * l_lr +
+                coeff[index + 8][3] * l_ll * l_ll + coeff[index + 8][4] * l_ll * l_lr +
+                coeff[index + 8][5] * l_lr * l_lr;
+      m(i, 9) = coeff[index + 9][0] + coeff[index + 9][1] * l_ll + coeff[index + 9][2] * l_lr +
+                coeff[index + 9][3] * l_ll * l_ll + coeff[index + 9][4] * l_ll * l_lr +
+                coeff[index + 9][5] * l_lr * l_lr;
     }
-    return M_;
+    return m;
   }
-
-  void legCmdCallback(const rm_msgs::LegCmdConstPtr& msg);
 };
-
 }  // namespace rm_chassis_controllers

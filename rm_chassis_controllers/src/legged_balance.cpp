@@ -106,7 +106,7 @@ bool LeggedBalanceController::init(hardware_interface::RobotHW* robot_hw, ros::N
 
 void LeggedBalanceController::moveJoint(const ros::Time& time, const ros::Duration& period)
 {
-  updateEstimation(time);
+  updateEstimation(time, period);
   switch (balance_mode_)
   {
     case BalanceMode::NORMAL:
@@ -129,38 +129,13 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
     ROS_INFO("[balance] Enter NOMAl");
     balance_state_changed_ = false;
   }
-  // vmc
-  double left_angle[2], right_angle[2];
-  left_angle[0] =
-      vmc_bias_angle_ + left_back_leg_joint_handle_.getPosition();  // [0]:back_vmc_joint [1]:front_vmc_joint
-  left_angle[1] = left_front_leg_joint_handle_.getPosition() + M_PI - vmc_bias_angle_;
-  right_angle[0] = vmc_bias_angle_ + right_back_leg_joint_handle_.getPosition();
-  right_angle[1] = right_front_leg_joint_handle_.getPosition() + M_PI - vmc_bias_angle_;
-  leg_pos(left_angle[0], left_angle[1], left_pos_);
-  leg_pos(right_angle[0], right_angle[1], right_pos_);
-  leg_spd(left_back_leg_joint_handle_.getVelocity(), left_front_leg_joint_handle_.getVelocity(), left_angle[0],
-          left_angle[1], left_spd_);
-  leg_spd(right_back_leg_joint_handle_.getVelocity(), right_front_leg_joint_handle_.getVelocity(), right_angle[0],
-          right_angle[1], right_spd_);
-
-  x_[1] = ((left_wheel_joint_handle_.getVelocity() + right_wheel_joint_handle_.getVelocity()) / 2 -
-           imu_handle_.getAngularVelocity()[1]) *
-          wheel_radius_;
-  x_[0] += x_[1] * period.toSec();
-  x_[2] = yaw_;
-  x_[3] = angular_vel_base_.z;
-  x_[4] = left_pos_[1] + pitch_;
-  x_[5] = left_spd_[1] + angular_vel_base_.y;
-  x_[6] = right_pos_[1] + pitch_;
-  x_[7] = right_spd_[1] + angular_vel_base_.y;
-  x_[8] = pitch_;
-  x_[9] = angular_vel_base_.y;
 
   // PID
   double T_theta_diff = pid_theta_diff_.computeCommand(x_[4] - x_[6], period);
   double F_length_diff = pid_length_diff_.computeCommand(left_pos_[0] - right_pos_[0], period);
   double leg_aver = (left_pos_[0] + right_pos_[0]) / 2;
 
+  // set target state
   yaw_des_ += vel_cmd_.z * period.toSec();
   position_des_ += vel_cmd_.x * period.toSec();
   Eigen::Matrix<double, CONTROL_DIM, 1> u;
@@ -189,7 +164,6 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   j << 1, cos(x_(4)), -1,
       -1, cos(x_(6)), 1;
   // clang-format on
-
   p << F_roll, F_gravity, F_inertial;
   F_bl = j * p + F_leg;
 
@@ -203,7 +177,7 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   right_back_leg_joint_handle_.setCommand(right_T[0]);
 }
 
-void LeggedBalanceController::updateEstimation(const ros::Time& time)
+void LeggedBalanceController::updateEstimation(const ros::Time& time, const ros::Duration& period)
 {
   geometry_msgs::Vector3 gyro;
   gyro.x = imu_handle_.getAngularVelocity()[0];
@@ -246,6 +220,33 @@ void LeggedBalanceController::updateEstimation(const ros::Time& time)
   odom2imu.setRotation(odom2imu_quaternion);
   odom2base = odom2imu * imu2base;
   quatToRPY(toMsg(odom2base).rotation, roll_, pitch_, yaw_);
+
+  // vmc
+  left_angle[0] =
+      vmc_bias_angle_ + left_back_leg_joint_handle_.getPosition();  // [0]:back_vmc_joint [1]:front_vmc_joint
+  left_angle[1] = left_front_leg_joint_handle_.getPosition() + M_PI - vmc_bias_angle_;
+  right_angle[0] = vmc_bias_angle_ + right_back_leg_joint_handle_.getPosition();
+  right_angle[1] = right_front_leg_joint_handle_.getPosition() + M_PI - vmc_bias_angle_;
+  leg_pos(left_angle[0], left_angle[1], left_pos_);
+  leg_pos(right_angle[0], right_angle[1], right_pos_);
+  leg_spd(left_back_leg_joint_handle_.getVelocity(), left_front_leg_joint_handle_.getVelocity(), left_angle[0],
+          left_angle[1], left_spd_);
+  leg_spd(right_back_leg_joint_handle_.getVelocity(), right_front_leg_joint_handle_.getVelocity(), right_angle[0],
+          right_angle[1], right_spd_);
+
+  // update state
+  x_[1] = ((left_wheel_joint_handle_.getVelocity() + right_wheel_joint_handle_.getVelocity()) / 2 -
+           imu_handle_.getAngularVelocity()[1]) *
+          wheel_radius_;
+  x_[0] += x_[1] * period.toSec();
+  x_[2] = yaw_;
+  x_[3] = angular_vel_base_.z;
+  x_[4] = left_pos_[1] + pitch_;
+  x_[5] = left_spd_[1] + angular_vel_base_.y;
+  x_[6] = right_pos_[1] + pitch_;
+  x_[7] = right_spd_[1] + angular_vel_base_.y;
+  x_[8] = pitch_;
+  x_[9] = angular_vel_base_.y;
 }
 
 geometry_msgs::Twist LeggedBalanceController::odometry()
@@ -260,5 +261,6 @@ void LeggedBalanceController::legCmdCallback(const rm_msgs::LegCmdConstPtr& msg)
 {
   leg_cmd_ = *msg;
 }
+
 }  // namespace rm_chassis_controllers
 PLUGINLIB_EXPORT_CLASS(rm_chassis_controllers::LeggedBalanceController, controller_interface::ControllerBase)
