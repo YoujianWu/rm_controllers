@@ -175,7 +175,7 @@ void ChassisBase<T...>::update(const ros::Time& time, const ros::Duration& perio
   vel_cmd_.z = ramp_w_->output();
 
   moveJoint(time, period);
-  powerLimit();
+  //  powerLimit();
 }
 
 template <typename... T>

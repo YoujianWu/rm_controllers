@@ -69,7 +69,11 @@ add_library(${PROJECT_NAME}
         src/sentry.cpp
         src/swerve.cpp
         src/balance.cpp
-)
+        src/legged_balance.cpp
+        src/vmc/leg_conv.c
+        src/vmc/leg_pos.c
+        src/vmc/leg_spd.c
+        )
 
 ## Specify libraries to link executable targets against
 target_link_libraries(${PROJECT_NAME}

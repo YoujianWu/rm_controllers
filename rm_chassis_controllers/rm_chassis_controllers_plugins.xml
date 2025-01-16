@@ -32,6 +32,14 @@
             EffortJointInterface type of hardware interface.
         </description>
     </class>
+    <class name="rm_chassis_controllers/LeggedBalanceController"
+           type="rm_chassis_controllers::LeggedBalanceController"
+           base_class_type="controller_interface::ControllerBase">
+        <description>
+            The BalanceController is RoboMaster balance standard robot Legged Balance controller. It expects a
+            EffortJointInterface type of hardware interface.
+        </description>
+    </class>
 
 
 </library>
