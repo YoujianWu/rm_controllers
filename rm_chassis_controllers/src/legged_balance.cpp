@@ -170,11 +170,6 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   if (state_ != RAW)
     x(1) -= vel_cmd_.x;
   x(3) -= vel_cmd_.z;
-  if (std::abs(x(0) + position_offset_) > position_clear_threshold_)
-  {
-    x_[0] = 0.;
-    position_des_ = position_offset_;
-  }
   k_ = getK(left_pos_[0], right_pos_[0]);
   u = k_ * (-x);
   left_wheel_joint_handle_.setCommand(u(0));
@@ -188,8 +183,8 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   F_leg[0] = pid_left_leg_.computeCommand(leg_cmd_.leg_length - leg_aver, period) - F_length_diff;
   F_leg[1] = pid_right_leg_.computeCommand(leg_cmd_.leg_length - leg_aver, period) + F_length_diff;
   F_roll = pid_roll_.computeCommand(0 - roll_, period);
-  F_inertial = 0;
-  F_gravity = 0;
+  F_inertial = (0.5 * 11.7) * leg_aver * 0.5 * 0.49 * x[1] * x[3];
+  F_gravity = 0.5 * 11.7 * 9.8;
   // clang-format off
   j << 1, cos(x_(4)), -1,
       -1, cos(x_(6)), 1;
@@ -201,8 +196,7 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   double left_T[2], right_T[2];
   leg_conv(F_bl[0], u(2) - T_theta_diff, left_angle[0], left_angle[1], left_T);
   leg_conv(F_bl[1], u(3) + T_theta_diff, right_angle[0], right_angle[1], right_T);
-  //  std::cout << "left:" << F_bl[0] << "  right:" << F_bl[1] << std::endl;
-  std::cout << u.transpose() << std::endl;
+  std::cout << x_.transpose() << std::endl;
   left_front_leg_joint_handle_.setCommand(left_T[1]);
   right_front_leg_joint_handle_.setCommand(right_T[1]);
   left_back_leg_joint_handle_.setCommand(left_T[0]);
