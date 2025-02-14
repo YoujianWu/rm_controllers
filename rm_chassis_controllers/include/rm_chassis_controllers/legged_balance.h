@@ -128,7 +128,7 @@ private:
       m(i, 2) = coeff[index + 2][0] + coeff[index + 2][1] * l_ll + coeff[index + 2][2] * l_lr +
                 coeff[index + 2][3] * l_ll * l_ll + coeff[index + 2][4] * l_ll * l_lr +
                 coeff[index + 2][5] * l_lr * l_lr;
-      m(i, 3) = coeff[index + 3][0] + coeff[index + 31][1] * l_ll + coeff[index + 3][2] * l_lr +
+      m(i, 3) = coeff[index + 3][0] + coeff[index + 3][1] * l_ll + coeff[index + 3][2] * l_lr +
                 coeff[index + 3][3] * l_ll * l_ll + coeff[index + 3][4] * l_ll * l_lr +
                 coeff[index + 3][5] * l_lr * l_lr;
       m(i, 4) = coeff[index + 4][0] + coeff[index + 4][1] * l_ll + coeff[index + 4][2] * l_lr +
