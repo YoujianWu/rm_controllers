@@ -97,6 +97,17 @@ bool LeggedBalanceController::init(hardware_interface::RobotHW* robot_hw, ros::N
     }
   }
 
+  // Slippage detection
+  A_ << 1, 0, 0, 1;
+  H_ << 1, 0, 0, 1;
+  Q_ << 0.5, 0, 0, 0.5;
+  R_ << 100, 0, 0, 100;
+  B_.setZero();
+  X_.setZero();
+  U_.setZero();
+  kalmanFilterPtr_ = std::make_shared<KalmanFilter<double>>(A_, B_, H_, Q_, R_);
+  kalmanFilterPtr_->clear(X_);
+
   // sub
   leg_cmd_subscriber_ =
       root_nh.subscribe<rm_msgs::LegCmd>("/leg_cmd", 1, &LeggedBalanceController::legCmdCallback, this);
@@ -170,7 +181,6 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   double left_T[2], right_T[2];
   leg_conv(F_bl[0], u(2) - T_theta_diff, left_angle[0], left_angle[1], left_T);
   leg_conv(F_bl[1], u(3) + T_theta_diff, right_angle[0], right_angle[1], right_T);
-  std::cout << x_.transpose() << std::endl;
   left_front_leg_joint_handle_.setCommand(left_T[1]);
   right_front_leg_joint_handle_.setCommand(right_T[1]);
   left_back_leg_joint_handle_.setCommand(left_T[0]);
@@ -234,10 +244,32 @@ void LeggedBalanceController::updateEstimation(const ros::Time& time, const ros:
   leg_spd(right_back_leg_joint_handle_.getVelocity(), right_front_leg_joint_handle_.getVelocity(), right_angle[0],
           right_angle[1], right_spd_);
 
+  // Slippage_detection
+  double leftWheelVel = (left_wheel_joint_handle_.getVelocity() - gyro.z + left_spd_[0]) * wheel_radius_;
+  double rightWheelVel = (right_wheel_joint_handle_.getVelocity() + gyro.z + right_spd_[0]) * wheel_radius_;
+  double leftWheelVelAbsolute =
+      leftWheelVel + left_pos_[0] * left_spd_[1] * cos(left_pos_[1]) + left_spd_[0] * sin(left_pos_[1]);
+  double rightWheelVelAbsolute =
+      rightWheelVel + right_pos_[0] * right_spd_[1] * cos(right_pos_[1]) + right_spd_[0] * sin(right_pos_[1]);
+
+  double wheel_vel_aver = (leftWheelVelAbsolute + rightWheelVelAbsolute) / 2.;
+  if (i >= sample_times_)
+  {  // oversampling
+    i = 0;
+    X_(0) = wheel_vel_aver;
+    X_(1) = imu_handle_.getLinearAccelerationCovariance()[0];
+    kalmanFilterPtr_->predict(U_);
+    kalmanFilterPtr_->update(X_);
+  }
+  else
+  {
+    kalmanFilterPtr_->predict(U_);
+    i++;
+  }
+  auto x_hat = kalmanFilterPtr_->getState();
+
   // update state
-  x_[1] = ((left_wheel_joint_handle_.getVelocity() + right_wheel_joint_handle_.getVelocity()) / 2 -
-           imu_handle_.getAngularVelocity()[1]) *
-          wheel_radius_;
+  x_[1] = x_hat[0];
   x_[0] += x_[1] * period.toSec();
   x_[2] = yaw_;
   x_[3] = angular_vel_base_.z;
