@@ -155,7 +155,10 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   x(2) = angles::shortest_angular_distance(yaw_des_, x_(2));
   if (state_ != RAW)
     x(1) -= vel_cmd_.x;
-  x(3) -= vel_cmd_.z;
+  if (x_(8) < 0.1)
+  {
+    x(3) -= vel_cmd_.z;
+  }
   k_ = getK(left_pos_[0], right_pos_[0]);
   u = k_ * (-x);
   left_wheel_joint_handle_.setCommand(u(0));
@@ -169,8 +172,8 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   F_leg[0] = pid_left_leg_.computeCommand(leg_cmd_.leg_length - leg_aver, period) - F_length_diff;
   F_leg[1] = pid_right_leg_.computeCommand(leg_cmd_.leg_length - leg_aver, period) + F_length_diff;
   F_roll = pid_roll_.computeCommand(0 - roll_, period);
-  F_inertial = (0.5 * 11.7) * leg_aver * 0.5 * 0.49 * x[1] * x[3];
-  F_gravity = 0.5 * 11.7 * 9.8;
+  F_inertial = (1. / 2 * body_mass_) * leg_aver * 1. / 2 * wheel_track_ * x[1] * x[3];
+  F_gravity = 1 / 2 * body_mass_ * g_;
   // clang-format off
   j << 1, cos(x_(4)), -1,
       -1, cos(x_(6)), 1;
@@ -245,8 +248,9 @@ void LeggedBalanceController::updateEstimation(const ros::Time& time, const ros:
           right_angle[1], right_spd_);
 
   // Slippage_detection
-  double leftWheelVel = (left_wheel_joint_handle_.getVelocity() - gyro.z + left_spd_[0]) * wheel_radius_;
-  double rightWheelVel = (right_wheel_joint_handle_.getVelocity() + gyro.z + right_spd_[0]) * wheel_radius_;
+  double leftWheelVel = (left_wheel_joint_handle_.getVelocity() - angular_vel_base_.z + left_spd_[0]) * wheel_radius_;
+  double rightWheelVel =
+      (right_wheel_joint_handle_.getVelocity() + angular_vel_base_.z + right_spd_[0]) * wheel_radius_;
   double leftWheelVelAbsolute =
       leftWheelVel + left_pos_[0] * left_spd_[1] * cos(left_pos_[1]) + left_spd_[0] * sin(left_pos_[1]);
   double rightWheelVelAbsolute =
@@ -268,10 +272,11 @@ void LeggedBalanceController::updateEstimation(const ros::Time& time, const ros:
   }
   auto x_hat = kalmanFilterPtr_->getState();
 
+  double yaw_last = x_[2];
   // update state
   x_[1] = x_hat[0];
   x_[0] += x_[1] * period.toSec();
-  x_[2] = yaw_;
+  x_[2] = yaw_last + angles::shortest_angular_distance(yaw_last, yaw_);
   x_[3] = angular_vel_base_.z;
   x_[4] = left_pos_[1] + pitch_;
   x_[5] = left_spd_[1] + angular_vel_base_.y;
