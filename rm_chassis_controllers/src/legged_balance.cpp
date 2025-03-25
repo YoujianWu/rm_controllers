@@ -82,6 +82,20 @@ bool LeggedBalanceController::init(hardware_interface::RobotHW* robot_hw, ros::N
       return false;
     }
   }
+  if (controller_nh.hasParam("pid_yaw_pos"))
+  {
+    if (!pid_yaw_pos_.init(ros::NodeHandle(controller_nh, "pid_yaw_pos")))
+    {
+      return false;
+    }
+  }
+  if (controller_nh.hasParam("pid_yaw_spd"))
+  {
+    if (!pid_yaw_spd_.init(ros::NodeHandle(controller_nh, "pid_yaw_spd")))
+    {
+      return false;
+    }
+  }
   if (controller_nh.hasParam("pid_center_gravity"))
   {
     if (!pid_center_gravity_.init(ros::NodeHandle(controller_nh, "pid_center_gravity")))
@@ -142,7 +156,7 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   }
 
   // PID
-  double T_theta_diff = pid_theta_diff_.computeCommand(x_[4] - x_[6], period);
+  double T_theta_diff = pid_theta_diff_.computeCommand(left_pos_[1] - right_pos_[1], period);
   double F_length_diff = pid_length_diff_.computeCommand(left_pos_[0] - right_pos_[0], period);
   double leg_aver = (left_pos_[0] + right_pos_[0]) / 2;
 
@@ -151,18 +165,15 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   position_des_ += vel_cmd_.x * period.toSec();
   Eigen::Matrix<double, CONTROL_DIM, 1> u;
   auto x = x_;
-  x(0) -= position_des_;
-  x(2) = angles::shortest_angular_distance(yaw_des_, x_(2));
+  x(2) -= position_des_;
   if (state_ != RAW)
-    x(1) -= vel_cmd_.x;
-  if (x_(8) < 0.1)
-  {
-    x(3) -= vel_cmd_.z;
-  }
-  k_ = getK(left_pos_[0], right_pos_[0]);
+    x(3) -= vel_cmd_.x;
+  k_ = getK(leg_aver);
   u = k_ * (-x);
-  left_wheel_joint_handle_.setCommand(u(0));
-  right_wheel_joint_handle_.setCommand(u(1));
+  pid_yaw_pos_.computeCommand((yaw_des_ - yaw_total_), period);
+  pid_yaw_spd_.computeCommand((pid_yaw_pos_.getCurrentCmd() - angular_vel_base_.z), period);
+  left_wheel_joint_handle_.setCommand(u(0) - pid_yaw_spd_.getCurrentCmd());
+  right_wheel_joint_handle_.setCommand(u(0) + pid_yaw_spd_.getCurrentCmd());
 
   // Leg control
   Eigen::Matrix<double, 2, 3> j;
@@ -172,18 +183,18 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   F_leg[0] = pid_left_leg_.computeCommand(leg_cmd_.leg_length - leg_aver, period) - F_length_diff;
   F_leg[1] = pid_right_leg_.computeCommand(leg_cmd_.leg_length - leg_aver, period) + F_length_diff;
   F_roll = pid_roll_.computeCommand(0 - roll_, period);
-  F_inertial = (1. / 2 * body_mass_) * leg_aver * 1. / 2 * wheel_track_ * x[1] * x[3];
-  F_gravity = 1 / 2 * body_mass_ * g_;
+  F_inertial = 0;
+  F_gravity = 1. / 2 * body_mass_ * g_;
   // clang-format off
-  j << 1, cos(x_(4)), -1,
-      -1, cos(x_(6)), 1;
+  j << 1, cos(left_pos_[1]), -1,
+      -1, cos(right_pos_[1]), 1;
   // clang-format on
   p << F_roll, F_gravity, F_inertial;
   F_bl = j * p + F_leg;
 
   double left_T[2], right_T[2];
-  leg_conv(F_bl[0], u(2) - T_theta_diff, left_angle[0], left_angle[1], left_T);
-  leg_conv(F_bl[1], u(3) + T_theta_diff, right_angle[0], right_angle[1], right_T);
+  leg_conv(F_bl[0], u(1) - T_theta_diff, left_angle[0], left_angle[1], left_T);
+  leg_conv(F_bl[1], u(1) + T_theta_diff, right_angle[0], right_angle[1], right_T);
   left_front_leg_joint_handle_.setCommand(left_T[1]);
   right_front_leg_joint_handle_.setCommand(right_T[1]);
   left_back_leg_joint_handle_.setCommand(left_T[0]);
@@ -272,25 +283,22 @@ void LeggedBalanceController::updateEstimation(const ros::Time& time, const ros:
   }
   auto x_hat = kalmanFilterPtr_->getState();
 
-  double yaw_last = x_[2];
+  double yaw_last = yaw_total_;
+  yaw_total_ = yaw_last + angles::shortest_angular_distance(yaw_last, yaw_);
   // update state
-  x_[1] = x_hat[0];
-  x_[0] += x_[1] * period.toSec();
-  x_[2] = yaw_last + angles::shortest_angular_distance(yaw_last, yaw_);
-  x_[3] = angular_vel_base_.z;
-  x_[4] = left_pos_[1] + pitch_;
-  x_[5] = left_spd_[1] + angular_vel_base_.y;
-  x_[6] = right_pos_[1] + pitch_;
-  x_[7] = right_spd_[1] + angular_vel_base_.y;
-  x_[8] = pitch_;
-  x_[9] = angular_vel_base_.y;
+  x_[0] = (left_pos_[1] + right_pos_[1]) / 2 + pitch_;
+  x_[1] = (left_spd_[1] + right_spd_[1]) / 2 + angular_vel_base_.y;
+  x_[2] = (left_wheel_joint_handle_.getPosition() + right_wheel_joint_handle_.getPosition()) / 2 * wheel_radius_;
+  x_[3] = (left_wheel_joint_handle_.getVelocity() + right_wheel_joint_handle_.getVelocity()) / 2 * wheel_radius_;
+  x_[4] = pitch_;
+  x_[5] = angular_vel_base_.y;
 }
 
 geometry_msgs::Twist LeggedBalanceController::odometry()
 {
   geometry_msgs::Twist twist;
-  twist.linear.x = x_[1];
-  twist.angular.z = x_[3];
+  twist.linear.x = x_[3];
+  twist.angular.z = angular_vel_base_.z;
   return twist;
 }
 
