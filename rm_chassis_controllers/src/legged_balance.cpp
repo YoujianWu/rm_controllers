@@ -193,12 +193,13 @@ void LeggedBalanceController::normal(const ros::Time& time, const ros::Duration&
   F_bl = j * p + F_leg;
 
   double left_T[2], right_T[2];
-  leg_conv(F_bl[0], u(1) - T_theta_diff, left_angle[0], left_angle[1], left_T);
-  leg_conv(F_bl[1], u(1) + T_theta_diff, right_angle[0], right_angle[1], right_T);
+  leg_conv(F_bl[0], -u(1) - T_theta_diff, left_angle[0], left_angle[1], left_T);
+  leg_conv(F_bl[1], -u(1) + T_theta_diff, right_angle[0], right_angle[1], right_T);
   left_front_leg_joint_handle_.setCommand(left_T[1]);
   right_front_leg_joint_handle_.setCommand(right_T[1]);
   left_back_leg_joint_handle_.setCommand(left_T[0]);
   right_back_leg_joint_handle_.setCommand(right_T[0]);
+  std::cout << u(1) << std::endl;
 }
 
 void LeggedBalanceController::updateEstimation(const ros::Time& time, const ros::Duration& period)
@@ -289,7 +290,7 @@ void LeggedBalanceController::updateEstimation(const ros::Time& time, const ros:
   x_[0] = (left_pos_[1] + right_pos_[1]) / 2 + pitch_;
   x_[1] = (left_spd_[1] + right_spd_[1]) / 2 + angular_vel_base_.y;
   x_[2] = (left_wheel_joint_handle_.getPosition() + right_wheel_joint_handle_.getPosition()) / 2 * wheel_radius_;
-  x_[3] = (left_wheel_joint_handle_.getVelocity() + right_wheel_joint_handle_.getVelocity()) / 2 * wheel_radius_;
+  x_[3] = x_hat(0);
   x_[4] = pitch_;
   x_[5] = angular_vel_base_.y;
 }
