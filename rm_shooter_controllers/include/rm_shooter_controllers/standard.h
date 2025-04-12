@@ -95,6 +95,9 @@ private:
   bool dynamic_reconfig_initialized_ = false;
   bool state_changed_ = false;
   bool maybe_block_ = false;
+  int friction_block_count = 0;
+  bool last_friction_wheel_block = false;
+  bool friction_wheel_block = false;
   double friction_block_effort_{}, friction_block_vel_{};
   double anti_friction_block_duty_cycle_{}, anti_friction_block_vel_{};
   bool has_shoot_ = false, has_shoot_last_ = false;
